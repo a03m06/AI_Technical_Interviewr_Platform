@@ -1,0 +1,562 @@
+"""
+generate_eval_corpus.py
+Builds the evaluation-grounding corpus: canonical concept explanations that
+the Evaluation Agent retrieves against before scoring a candidate's answer.
+
+Content here is original synthesis (Claude-authored), not scraped from any
+site. Coverage is prioritized by tag/topic frequency in the actual question
+bank (see ingestion/clean_data.py output) so the highest-volume question
+categories (DSA patterns, OOP, System Design, LLD, OS, DBMS/SQL, Networking,
+language fundamentals, ML/LLM concepts) are grounded first.
+
+Each entry:
+- topic / tags: match the question bank's taxonomy so retrieval can be
+  scoped to the same topic as the question being evaluated
+- explanation: the canonical, correct explanation of the concept
+- key_points: the specific things a strong answer should hit
+- pitfalls: common mistakes / misconceptions -- useful for the Evaluation
+  Agent to flag specifically, not just say "wrong"
+- complexity / edge_cases: populated for DSA/coding-pattern entries only
+"""
+
+import json
+from pathlib import Path
+
+OUT_PATH = Path(__file__).parent.parent / "data" / "canonical_explanations.json"
+
+CORPUS = [
+    # ---------------- DSA PATTERNS ----------------
+    {
+        "id": "CE001", "topic": "DSA", "tags": ["array", "two pointer", "sliding window"],
+        "concept": "Two-pointer and sliding window technique",
+        "explanation": "Two-pointer and sliding window are O(n) alternatives to O(n^2) brute-force scans over an array or string. Two-pointer uses two indices moving toward or away from each other (common for sorted-array pair/triplet problems). Sliding window maintains a contiguous subarray/substring bounded by a left and right pointer, expanding right to include elements and contracting left to restore a constraint, giving O(n) amortized time since each pointer moves forward at most n times.",
+        "key_points": [
+            "Recognize the pattern when the problem asks for a contiguous subarray/substring or a pair/triplet in a sorted array",
+            "State the invariant the window maintains (e.g., sum <= k, at most k distinct characters)",
+            "Correctly identify when to shrink vs grow the window",
+            "Time complexity O(n), space O(1) or O(k) for auxiliary structures like a frequency map",
+        ],
+        "pitfalls": [
+            "Using sliding window on an unsorted array for pair-sum problems without realizing two-pointer requires sorted input",
+            "Off-by-one errors when the window boundary is inclusive vs exclusive",
+            "Forgetting to shrink the window before checking the answer, causing an invalid window to be counted",
+        ],
+        "complexity": "O(n) time, O(1) to O(k) space", "edge_cases": ["empty array", "window larger than array", "all identical elements"],
+    },
+    {
+        "id": "CE002", "topic": "DSA", "tags": ["dynamic programming"],
+        "concept": "Dynamic programming approach",
+        "explanation": "DP solves problems with overlapping subproblems and optimal substructure by caching subproblem results instead of recomputing them. A candidate should be able to (1) define the state (what does dp[i] or dp[i][j] represent), (2) write the recurrence relation connecting a state to smaller states, (3) identify the base case, and (4) decide between top-down memoization and bottom-up tabulation.",
+        "key_points": [
+            "Explicit state definition before writing any code",
+            "Correct recurrence relation derived from the state definition, not guessed",
+            "Correct base cases",
+            "Space optimization when only the last row/few states are needed (rolling array)",
+        ],
+        "pitfalls": [
+            "Jumping to code without defining the state — leads to an unprovable/incorrect recurrence",
+            "Confusing optimal substructure with problems that don't actually have it (e.g., longest simple path in a general graph)",
+            "Not considering whether the problem needs 1D, 2D, or higher-dimensional state",
+        ],
+        "complexity": "typically O(n) to O(n*m) time depending on state dimensions; space often reducible to O(m) via rolling arrays",
+        "edge_cases": ["empty input", "single element", "all same values"],
+    },
+    {
+        "id": "CE003", "topic": "DSA", "tags": ["string", "hashing"],
+        "concept": "String pattern matching and hashing",
+        "explanation": "Common string problems (anagram grouping, substring search, longest unique substring) are typically solved with a frequency map (hashing) or the sliding window pattern above. Hashing reduces string/character comparison to O(1) average lookup, turning an O(n*m) brute force into O(n) or O(n+m).",
+        "key_points": [
+            "Use a fixed-size array (26 for lowercase letters) instead of a hashmap when the alphabet is small, for better constant factors",
+            "For anagram detection, sorting each string (O(k log k)) vs frequency counting (O(k)) is a relevant tradeoff to discuss",
+            "Rolling hash (e.g., Rabin-Karp) for substring search avoids recomputing the hash from scratch each window shift",
+        ],
+        "pitfalls": [
+            "Not discussing hash collisions when proposing a custom hash function",
+            "Using a hashmap when a fixed array would be simpler and faster for a known small alphabet",
+        ],
+        "complexity": "O(n) to O(n+m) with hashing vs O(n*m) brute force", "edge_cases": ["empty string", "unicode/multi-byte characters", "case sensitivity"],
+    },
+    {
+        "id": "CE004", "topic": "DSA", "tags": ["linked list"],
+        "concept": "Linked list manipulation",
+        "explanation": "Linked list problems (reversal, cycle detection, merging, sorting) rely on careful pointer manipulation. Cycle detection uses Floyd's slow/fast pointer algorithm (O(n) time, O(1) space) rather than a visited-set (O(n) space). Sorting a linked list optimally uses merge sort (O(n log n)) since random access needed for quicksort-style partitioning is not O(1) on a linked list.",
+        "key_points": [
+            "Use a dummy/sentinel head node to simplify edge cases in insertion/deletion at the head",
+            "Floyd's cycle detection (slow/fast pointers) for O(1) space cycle detection",
+            "Merge sort is the standard optimal sort for linked lists, not quicksort",
+        ],
+        "pitfalls": [
+            "Losing the reference to the next node before reversing the current node's pointer",
+            "Not handling the empty list or single-node list as edge cases",
+            "Using O(n) extra space (e.g., an array or hashset) when O(1) pointer techniques exist",
+        ],
+        "complexity": "O(n) time for most operations, O(1) space achievable for reversal/cycle detection",
+        "edge_cases": ["empty list", "single node", "cycle at the head"],
+    },
+    {
+        "id": "CE005", "topic": "DSA", "tags": ["tree", "graph", "dfs", "bfs"],
+        "concept": "Tree and graph traversal (DFS/BFS)",
+        "explanation": "DFS explores as far as possible along a branch before backtracking (implemented recursively or with an explicit stack); BFS explores level by level using a queue. BFS is the correct choice for shortest-path-in-unweighted-graph problems since it visits nodes in increasing distance order. DFS is typical for connectivity, cycle detection, and problems requiring path enumeration.",
+        "key_points": [
+            "Justify BFS vs DFS choice based on what the problem actually asks (shortest path -> BFS; existence/enumeration of paths -> DFS)",
+            "For graphs (vs trees), track visited nodes to avoid infinite loops on cycles",
+            "State time/space complexity as O(V+E) for adjacency-list representations",
+        ],
+        "pitfalls": [
+            "Using DFS for shortest path in an unweighted graph (gives *a* path, not necessarily the shortest)",
+            "Forgetting the visited set on a general graph, causing infinite recursion/looping on cycles",
+            "Using an adjacency matrix (O(V^2) space) when an adjacency list (O(V+E)) is more appropriate for sparse graphs",
+        ],
+        "complexity": "O(V+E) time and space with adjacency list", "edge_cases": ["disconnected graph", "self-loops", "empty tree"],
+    },
+    {
+        "id": "CE006", "topic": "DSA", "tags": ["matrix", "array"],
+        "concept": "Matrix traversal and manipulation",
+        "explanation": "Matrix problems (rotation, spiral traversal, searching a sorted matrix, flood fill) generally reduce to careful index bookkeeping or reuse of DFS/BFS on a grid. In-place rotation of a matrix (90 degrees) can be done via transpose + reverse rows in O(1) extra space instead of allocating a new matrix.",
+        "key_points": [
+            "In-place techniques (transpose+reverse) avoid O(n^2) extra space for rotation",
+            "Binary search works on a row-and-column sorted matrix by starting from a corner (top-right or bottom-left) to eliminate a row or column each step",
+            "Boundary tracking (top/bottom/left/right) is the clean way to implement spiral traversal",
+        ],
+        "pitfalls": [
+            "Allocating a new matrix for rotation when in-place is expected/asked",
+            "Off-by-one errors in boundary shrinking during spiral traversal",
+        ],
+        "complexity": "O(rows*cols) time; O(1) extra space achievable for in-place operations",
+        "edge_cases": ["1xN or Nx1 matrix", "empty matrix", "non-square matrix"],
+    },
+    {
+        "id": "CE007", "topic": "DSA", "tags": ["sorting", "array"],
+        "concept": "Sorting algorithms and complexity tradeoffs",
+        "explanation": "A candidate should know the complexity and stability of common sorts: merge sort (O(n log n), stable, O(n) space), quicksort (O(n log n) average, O(n^2) worst case, in-place but unstable), heapsort (O(n log n), in-place, unstable), and when counting/radix/bucket sort's O(n+k) beats comparison-based O(n log n) bounds for bounded-range integer inputs.",
+        "key_points": [
+            "Comparison-based sorting has a hard lower bound of O(n log n)",
+            "Stability matters when sorting objects by a secondary key after already sorting by a primary key",
+            "Non-comparison sorts (counting/radix) can beat O(n log n) only when the value range is bounded",
+        ],
+        "pitfalls": [
+            "Claiming quicksort is always O(n log n) without acknowledging the O(n^2) worst case (e.g., already-sorted input with a naive pivot)",
+            "Using a comparison sort when a bounded-range counting sort would be asymptotically faster",
+        ],
+        "complexity": "O(n log n) comparison-based; O(n+k) for counting/radix sort", "edge_cases": ["already sorted", "reverse sorted", "many duplicates"],
+    },
+    {
+        "id": "CE008", "topic": "DSA", "tags": ["backtracking"],
+        "concept": "Backtracking",
+        "explanation": "Backtracking incrementally builds candidates for a solution and abandons ('backtracks') a candidate as soon as it determines the candidate cannot lead to a valid solution. It's the standard approach for combinatorial problems (permutations, subsets, N-Queens, Sudoku) where the search space is pruned rather than fully enumerated.",
+        "key_points": [
+            "Explicit pruning condition — where and why the algorithm cuts off a branch early",
+            "State restoration (undoing a choice) after recursing, which is what distinguishes backtracking from plain brute-force recursion",
+            "Discuss worst-case exponential complexity honestly, while explaining what pruning saves in practice",
+        ],
+        "pitfalls": [
+            "Forgetting to undo a mutation (e.g., removing from a path list) after the recursive call returns, corrupting sibling branches",
+            "No pruning at all, effectively degrading to brute force",
+        ],
+        "complexity": "Often exponential worst case (e.g., O(2^n) or O(n!)), reduced significantly by effective pruning",
+        "edge_cases": ["no valid solution exists", "single valid solution", "all inputs identical"],
+    },
+    {
+        "id": "CE009", "topic": "DSA", "tags": ["heap", "greedy"],
+        "concept": "Heaps and greedy algorithms",
+        "explanation": "A heap (priority queue) gives O(log n) insertion and O(1) peek/O(log n) extraction of the min or max element, making it the standard structure for top-k, scheduling, and merge-k-sorted-lists problems. Greedy algorithms make the locally optimal choice at each step; they only produce a globally optimal solution when the problem has the greedy-choice property, which should be justified, not assumed.",
+        "key_points": [
+            "Recognize when a problem needs 'the current min/max efficiently' — that's a heap signal",
+            "For greedy solutions, state why the greedy choice is safe (exchange argument or similar), not just that it 'seems right'",
+            "Min-heap vs max-heap choice depends on which extreme the problem needs repeatedly",
+        ],
+        "pitfalls": [
+            "Applying a greedy strategy without proving/arguing correctness — many problems that look greedy actually need DP (e.g., 0/1 knapsack)",
+            "Using a sorted array with O(n) reinsertion cost when a heap would give O(log n)",
+        ],
+        "complexity": "O(log n) per heap operation, O(n log n) to build via repeated insertion (O(n) with heapify)",
+        "edge_cases": ["empty input", "duplicate priorities", "k larger than input size"],
+    },
+    # ---------------- OOP ----------------
+    {
+        "id": "CE010", "topic": "OOP", "tags": ["oop", "inheritance", "polymorphism"],
+        "concept": "The four pillars of OOP",
+        "explanation": "Encapsulation bundles data and the methods that operate on it, restricting direct access to internal state. Abstraction exposes only relevant behavior through an interface, hiding implementation detail. Inheritance lets a class acquire properties/behavior from a parent, enabling code reuse and an is-a relationship. Polymorphism lets objects of different types be treated through a common interface, resolved either at compile time (overloading) or runtime (overriding, via dynamic dispatch).",
+        "key_points": [
+            "Distinguish abstraction (what) from encapsulation (how it's protected) — commonly conflated",
+            "Explain runtime polymorphism via virtual method tables / dynamic dispatch, not just 'method overriding'",
+            "Favor composition over inheritance where an is-a relationship doesn't genuinely hold (avoid inheritance for code reuse alone)",
+        ],
+        "pitfalls": [
+            "Treating abstraction and encapsulation as interchangeable",
+            "Using inheritance purely to reuse code when the relationship is actually has-a, not is-a",
+        ],
+        "complexity": None, "edge_cases": [],
+    },
+    {
+        "id": "CE011", "topic": "OOP", "tags": ["oop", "design", "architecture"],
+        "concept": "SOLID principles",
+        "explanation": "Single Responsibility: a class should have one reason to change. Open/Closed: open for extension, closed for modification (extend behavior via new code, not editing existing tested code). Liskov Substitution: subtypes must be substitutable for their base type without breaking correctness. Interface Segregation: prefer many small, client-specific interfaces over one large general interface. Dependency Inversion: depend on abstractions, not concrete implementations.",
+        "key_points": [
+            "Give a concrete violation example for at least one principle, not just the definition",
+            "Explain how Dependency Inversion enables testability (mocking interfaces)",
+            "Liskov violations often show up as subclasses that throw NotImplementedError for inherited methods — a good example to cite",
+        ],
+        "pitfalls": [
+            "Reciting definitions without a concrete example",
+            "Confusing Open/Closed with 'never modify code' — it specifically means extend via abstraction, not a literal ban on edits",
+        ],
+        "complexity": None, "edge_cases": [],
+    },
+    {
+        "id": "CE012", "topic": "OOP", "tags": ["design", "lld"],
+        "concept": "Common design patterns (Singleton, Factory, Observer, Strategy)",
+        "explanation": "Singleton restricts a class to a single instance (useful for shared resources like config or connection pools, but overused and can hurt testability). Factory encapsulates object creation logic so client code doesn't depend on concrete classes. Observer lets objects subscribe to state-change notifications (pub-sub is a distributed variant). Strategy encapsulates interchangeable algorithms behind a common interface, selected at runtime.",
+        "key_points": [
+            "Justify pattern choice against the actual problem constraints rather than naming a pattern for its own sake",
+            "Discuss Singleton's downsides (global state, testing difficulty, thread-safety complexity) alongside its use case",
+            "Strategy vs Factory distinction: Strategy varies behavior/algorithm, Factory varies object creation",
+        ],
+        "pitfalls": [
+            "Pattern-name-dropping without explaining why it fits this specific problem",
+            "Proposing Singleton for something that will need multiple instances later (e.g., multi-tenant systems)",
+        ],
+        "complexity": None, "edge_cases": [],
+    },
+    # ---------------- SYSTEM DESIGN ----------------
+    {
+        "id": "CE013", "topic": "System Design", "tags": ["system design", "architecture", "scaling"],
+        "concept": "Scalability fundamentals",
+        "explanation": "Vertical scaling adds resources (CPU/RAM) to a single machine — simple but hits a hardware ceiling and creates a single point of failure. Horizontal scaling adds more machines behind a load balancer — more complex (needs stateless services, distributed session handling) but scales further and improves fault tolerance. Load balancers distribute traffic using algorithms like round-robin, least-connections, or consistent hashing.",
+        "key_points": [
+            "State explicit tradeoffs, not just 'horizontal scaling is better' — vertical is simpler and appropriate below a certain scale",
+            "Statelessness is a prerequisite for effective horizontal scaling — call this out explicitly",
+            "Consistent hashing minimizes redistribution when nodes are added/removed, relevant for caching layers and sharded databases",
+        ],
+        "pitfalls": [
+            "Jumping straight to microservices/horizontal scaling for a low-traffic system without justifying the added operational complexity",
+            "Not discussing how session state is handled when scaling horizontally",
+        ],
+        "complexity": None, "edge_cases": [],
+    },
+    {
+        "id": "CE014", "topic": "System Design", "tags": ["system design", "caching"],
+        "concept": "Caching strategies",
+        "explanation": "Cache-aside (lazy loading): application checks cache first, loads from DB on miss and populates cache. Write-through: writes go to cache and DB synchronously, keeping them consistent at the cost of write latency. Write-back: writes go to cache first and are flushed to DB asynchronously, faster but risks data loss on cache failure. Eviction policies (LRU, LFU, TTL-based) determine what gets removed under memory pressure.",
+        "key_points": [
+            "Justify the caching strategy against the read/write ratio and consistency requirements of the specific system",
+            "Cache invalidation is explicitly called out as one of the hardest problems here — a strong answer acknowledges stale-cache risk",
+            "TTL vs explicit invalidation tradeoff for time-sensitive vs event-driven data",
+        ],
+        "pitfalls": [
+            "Proposing write-back caching for financial/critical data without acknowledging the data-loss risk on failure",
+            "Not addressing cache invalidation at all",
+        ],
+        "complexity": None, "edge_cases": [],
+    },
+    {
+        "id": "CE015", "topic": "System Design", "tags": ["system design", "database", "sharding"],
+        "concept": "Database sharding and replication",
+        "explanation": "Sharding partitions data horizontally across multiple databases by a shard key, enabling writes to scale beyond a single machine's capacity — but complicates cross-shard queries/joins and rebalancing. Replication copies data across multiple nodes for read scaling and fault tolerance; leader-follower replication has one write node and multiple read replicas, introducing replication lag as a consistency tradeoff.",
+        "key_points": [
+            "Shard key choice is the crux of the design — a poor key causes hot-spotting (uneven load)",
+            "Distinguish sharding (scales writes, splits data) from replication (scales reads, duplicates data) — commonly conflated",
+            "Acknowledge replication lag and its implication for read-after-write consistency",
+        ],
+        "pitfalls": [
+            "Proposing sharding without picking or justifying a shard key",
+            "Treating replication as a substitute for sharding when the write load is the actual bottleneck",
+        ],
+        "complexity": None, "edge_cases": [],
+    },
+    {
+        "id": "CE016", "topic": "System Design", "tags": ["system design", "cap theorem"],
+        "concept": "CAP theorem and consistency models",
+        "explanation": "CAP theorem states a distributed system can only guarantee two of Consistency, Availability, and Partition tolerance during a network partition — and since partitions are a fact of distributed systems, the real choice is CP (consistent but may reject requests) vs AP (available but may return stale data). Strong consistency guarantees reads see the latest write; eventual consistency allows temporary staleness in exchange for availability/latency.",
+        "key_points": [
+            "Frame the tradeoff as CP vs AP under partition, not as if all three are simultaneously achievable in the general case",
+            "Tie the choice to the actual use case: banking/inventory often needs CP; social media feeds often tolerate AP",
+        ],
+        "pitfalls": [
+            "Treating CAP as a 'pick any 2 of 3' always-available choice — the P (partition) isn't optional in a real distributed system",
+        ],
+        "complexity": None, "edge_cases": [],
+    },
+    {
+        "id": "CE017", "topic": "System Design", "tags": ["system design", "message queue", "async"],
+        "concept": "Message queues and async processing",
+        "explanation": "Message queues (Kafka, RabbitMQ, SQS) decouple producers from consumers, letting services scale independently and absorb traffic spikes by buffering work. They also enable retry/dead-letter handling for failed processing. Tradeoffs include added operational complexity, eventual (not immediate) processing, and the need to handle out-of-order or duplicate delivery.", "key_points": [
+            "Explain decoupling and load-leveling (absorbing spiky traffic) as the primary motivations",
+            "At-least-once delivery implies consumers must handle duplicate messages idempotently",
+            "Dead-letter queues for messages that repeatedly fail processing",
+        ],
+        "pitfalls": [
+            "Assuming exactly-once delivery is free/default — most systems provide at-least-once and require idempotent consumers",
+        ],
+        "complexity": None, "edge_cases": [],
+    },
+    {
+        "id": "CE018", "topic": "System Design", "tags": ["rate limiter", "api"],
+        "concept": "Rate limiting algorithms",
+        "explanation": "Token bucket allows bursty traffic up to a bucket size while enforcing an average rate. Leaky bucket smooths bursts into a constant output rate. Fixed window counters are simple but allow up to 2x the limit at window boundaries; sliding window log/counter fixes this at the cost of more memory/computation.",
+        "key_points": [
+            "Justify algorithm choice against whether bursty traffic should be allowed (token bucket) or smoothed (leaky bucket)",
+            "Call out the fixed-window boundary problem specifically if proposing fixed windows",
+            "Discuss where the limiter state lives (in-memory single node vs distributed store like Redis) for a multi-instance service",
+        ],
+        "pitfalls": [
+            "Proposing fixed-window counting without acknowledging the boundary burst issue",
+            "Not addressing how rate limit state is shared across multiple API server instances",
+        ],
+        "complexity": None, "edge_cases": [],
+    },
+    # ---------------- LLD ----------------
+    {
+        "id": "CE019", "topic": "LLD", "tags": ["lld", "ood"],
+        "concept": "Low-level design approach",
+        "explanation": "A strong LLD answer identifies the core entities/classes and their relationships (composition vs inheritance), defines responsibilities per class (tying back to Single Responsibility), specifies key interfaces/abstract classes for extensibility, and addresses concurrency (thread-safety) where relevant (e.g., a parking lot or booking system with concurrent access).",
+        "key_points": [
+            "Clarify requirements/scope before diving into classes (what operations must be supported)",
+            "Identify entities and relationships explicitly (class diagram level, even if described verbally)",
+            "Address extensibility — how would a new requirement be added without breaking existing classes",
+            "Address concurrency for any shared, mutable resource",
+        ],
+        "pitfalls": [
+            "Jumping straight into class code without clarifying requirements first",
+            "Ignoring concurrency/thread-safety in systems that obviously have concurrent actors (parking lot, booking, inventory)",
+        ],
+        "complexity": None, "edge_cases": [],
+    },
+    # ---------------- OS ----------------
+    {
+        "id": "CE020", "topic": "OS", "tags": ["os", "concurrency"],
+        "concept": "Process vs thread",
+        "explanation": "A process has its own isolated memory space and resources; inter-process communication is expensive (pipes, sockets, shared memory). A thread is a unit of execution within a process, sharing the process's memory space with other threads — cheaper to create/switch but requires explicit synchronization to avoid race conditions on shared data.",
+        "key_points": [
+            "Correctly attribute memory isolation to processes and memory sharing to threads",
+            "Context-switch cost: thread switches are cheaper than process switches because the memory map doesn't need to change",
+            "State why shared memory in threads necessitates synchronization primitives",
+        ],
+        "pitfalls": ["Claiming threads have fully isolated memory (that's processes)"],
+        "complexity": None, "edge_cases": [],
+    },
+    {
+        "id": "CE021", "topic": "OS", "tags": ["os", "concurrency"],
+        "concept": "Synchronization: mutex, semaphore, deadlock",
+        "explanation": "A mutex is a binary lock owned by the thread that acquired it, used for mutual exclusion on a critical section. A semaphore is a counter-based signal that can allow up to N threads (a mutex is a semaphore with count 1), and is not necessarily tied to ownership — commonly used for signaling between threads, not just exclusion. Deadlock occurs when circular waiting on resources occurs; the four Coffman conditions (mutual exclusion, hold-and-wait, no preemption, circular wait) must all hold, so breaking any one prevents deadlock.",
+        "key_points": [
+            "Correctly distinguish mutex (ownership-based exclusion) from semaphore (counting-based signaling)",
+            "Name at least one deadlock prevention strategy (lock ordering, timeout-based lock acquisition, avoiding hold-and-wait)",
+        ],
+        "pitfalls": [
+            "Treating mutex and semaphore(1) as identical in all respects — semaphores lack the ownership concept a mutex has",
+            "Naming deadlock without being able to describe a prevention/avoidance strategy",
+        ],
+        "complexity": None, "edge_cases": [],
+    },
+    {
+        "id": "CE022", "topic": "OS", "tags": ["os", "memory management"],
+        "concept": "Memory management: paging and segmentation",
+        "explanation": "Paging divides memory into fixed-size pages, eliminating external fragmentation but potentially causing internal fragmentation (unused space within the last page). Segmentation divides memory into variable-size logical segments (code, stack, heap), matching program structure better but reintroducing external fragmentation. Thrashing occurs when a system spends more time paging (swapping) than executing, typically from insufficient physical memory for the working set.",
+        "key_points": [
+            "Correctly attribute internal fragmentation to paging and external fragmentation to segmentation",
+            "Explain thrashing's cause (working set exceeds available frames) and a mitigation (working set model, adjusting the degree of multiprogramming)",
+        ],
+        "pitfalls": ["Mixing up which fragmentation type belongs to which scheme"],
+        "complexity": None, "edge_cases": [],
+    },
+    {
+        "id": "CE023", "topic": "OS", "tags": ["os", "scheduling"],
+        "concept": "CPU scheduling algorithms",
+        "explanation": "FCFS (first-come-first-served) is simple but causes the convoy effect (short jobs stuck behind long ones). SJF (shortest job first) minimizes average waiting time but requires knowing job length in advance and can starve long jobs. Round-robin gives each process a fixed time quantum, fair and responsive for interactive systems but with higher context-switch overhead if the quantum is too small. Priority scheduling can starve low-priority processes without aging.",
+        "key_points": [
+            "Tie algorithm choice to system type (batch vs interactive) rather than naming algorithms generically",
+            "Mention starvation risk for SJF/priority scheduling and aging as a fix",
+        ],
+        "pitfalls": ["Claiming SJF is always optimal without acknowledging it needs a priori knowledge of burst time"],
+        "complexity": None, "edge_cases": [],
+    },
+    # ---------------- DBMS / SQL ----------------
+    {
+        "id": "CE024", "topic": "SQL", "tags": ["sql", "joins"],
+        "concept": "SQL joins",
+        "explanation": "INNER JOIN returns only matching rows from both tables. LEFT (OUTER) JOIN returns all rows from the left table plus matched rows from the right (NULLs where unmatched). RIGHT JOIN is the mirror. FULL OUTER JOIN returns all rows from both, matched where possible. A candidate should also know that a JOIN condition on a non-indexed column causes a full table scan, relevant to performance discussions.",
+        "key_points": [
+            "Correctly state which rows are preserved/dropped for each join type, including NULL behavior",
+            "Connect join performance to indexing on the join column",
+        ],
+        "pitfalls": ["Confusing LEFT and RIGHT join direction", "Forgetting NULL fill behavior for unmatched rows in outer joins"],
+        "complexity": None, "edge_cases": [],
+    },
+    {
+        "id": "CE025", "topic": "DBMS", "tags": ["dbms", "acid", "normalization"],
+        "concept": "ACID properties and normalization",
+        "explanation": "Atomicity: a transaction fully completes or fully rolls back. Consistency: a transaction moves the DB between valid states per its constraints. Isolation: concurrent transactions don't see each other's intermediate state (governed by isolation levels: read uncommitted, read committed, repeatable read, serializable). Durability: committed changes survive crashes. Normalization (1NF-3NF+) reduces redundancy and update anomalies by decomposing tables based on functional dependencies, at the cost of requiring joins to reconstruct full records.",
+        "key_points": [
+            "Name at least one isolation level and what anomaly it prevents (e.g., repeatable read prevents non-repeatable reads but not phantom reads)",
+            "Explain normalization as a redundancy/anomaly tradeoff against join cost, not just 'organizing data'",
+        ],
+        "pitfalls": ["Describing normalization without connecting it to functional dependencies or anomalies it prevents"],
+        "complexity": None, "edge_cases": [],
+    },
+    {
+        "id": "CE026", "topic": "DBMS", "tags": ["dbms", "indexing"],
+        "concept": "Database indexing",
+        "explanation": "An index (commonly a B+ tree) speeds up reads on the indexed column(s) from O(n) table scan to O(log n) lookup, at the cost of slower writes (the index must be updated on insert/update/delete) and additional storage. Composite indexes are ordered by column order, so a query must use a left-prefix of the indexed columns to benefit.",
+        "key_points": [
+            "State the read/write tradeoff explicitly, not just 'indexes make queries faster'",
+            "Left-prefix rule for composite indexes",
+        ],
+        "pitfalls": ["Suggesting indexing every column without acknowledging write-performance and storage cost"],
+        "complexity": None, "edge_cases": [],
+    },
+    # ---------------- NETWORKING ----------------
+    {
+        "id": "CE027", "topic": "Computer Networks", "tags": ["networking", "osi", "tcp"],
+        "concept": "OSI/TCP-IP model and TCP vs UDP",
+        "explanation": "The OSI model's 7 layers (Physical, Data Link, Network, Transport, Session, Presentation, Application) describe networking conceptually; TCP/IP's 4-5 layer model is what's actually implemented. TCP is connection-oriented, provides reliable ordered delivery via acknowledgments and retransmission, at the cost of higher latency. UDP is connectionless, no delivery guarantee, lower overhead — used where speed matters more than reliability (video streaming, DNS, gaming).",
+        "key_points": [
+            "Correctly place key protocols in their layer (HTTP-Application, TCP/UDP-Transport, IP-Network)",
+            "Tie TCP vs UDP choice to the actual use case rather than stating 'TCP is better'",
+        ],
+        "pitfalls": ["Claiming TCP is strictly superior without acknowledging UDP's latency advantage for loss-tolerant use cases"],
+        "complexity": None, "edge_cases": [],
+    },
+    {
+        "id": "CE028", "topic": "Computer Networks", "tags": ["networking", "http"],
+        "concept": "HTTP/HTTPS fundamentals",
+        "explanation": "HTTP is stateless — each request is independent, with state maintained externally via cookies/sessions/tokens. HTTPS adds TLS encryption on top of HTTP, established via a handshake that negotiates a symmetric session key using asymmetric cryptography, protecting confidentiality and integrity in transit. HTTP/2 introduced multiplexing (multiple requests over one connection) and header compression over HTTP/1.1.",
+        "key_points": [
+            "Explain statelessness and how state is actually maintained in practice (cookies, tokens, server-side sessions)",
+            "Correctly describe the TLS handshake's role: asymmetric crypto to establish a symmetric session key",
+        ],
+        "pitfalls": ["Describing HTTPS as 'just HTTP with a password' rather than describing the actual encryption mechanism"],
+        "complexity": None, "edge_cases": [],
+    },
+    # ---------------- LANGUAGE FUNDAMENTALS ----------------
+    {
+        "id": "CE029", "topic": "Java", "tags": ["java", "collections"],
+        "concept": "Java collections and memory model basics",
+        "explanation": "ArrayList offers O(1) indexed access but O(n) insertion/deletion in the middle; LinkedList offers O(1) insertion/deletion at known positions but O(n) indexed access. HashMap gives average O(1) get/put via hashing with collision handling (chaining/open addressing), degrading to O(n) worst case with poor hash distribution. Java's garbage collector reclaims objects with no reachable references, using generational collection (young/old generation) to optimize for the common case of short-lived objects.",
+        "key_points": [
+            "State the actual complexity tradeoff between ArrayList and LinkedList rather than just naming both",
+            "Connect HashMap performance to hash function quality/collision handling",
+        ],
+        "pitfalls": ["Claiming LinkedList is always faster for insertion without noting the O(n) traversal cost to reach the insertion point"],
+        "complexity": None, "edge_cases": [],
+    },
+    {
+        "id": "CE030", "topic": "Python", "tags": ["python", "gil"],
+        "concept": "Python fundamentals: GIL and memory management",
+        "explanation": "The Global Interpreter Lock (GIL) allows only one thread to execute Python bytecode at a time in CPython, meaning threading doesn't achieve true parallelism for CPU-bound work (though it still helps for I/O-bound work, since the GIL is released during I/O waits). Multiprocessing sidesteps the GIL by using separate processes with separate memory. Python uses reference counting plus a cyclic garbage collector to reclaim memory, with reference counting handling most cases immediately and the cyclic collector catching reference cycles.",
+        "key_points": [
+            "Correctly distinguish CPU-bound (needs multiprocessing) from I/O-bound (threading still helps) when discussing the GIL",
+            "Reference counting as the primary mechanism, cyclic GC as the backstop for cycles",
+        ],
+        "pitfalls": ["Claiming Python threading never helps performance — it does for I/O-bound workloads"],
+        "complexity": None, "edge_cases": [],
+    },
+    {
+        "id": "CE031", "topic": "JavaScript", "tags": ["javascript", "event loop", "async"],
+        "concept": "JavaScript event loop and async model",
+        "explanation": "JavaScript is single-threaded but achieves async behavior via the event loop: synchronous code runs on the call stack, async callbacks/promises go to the microtask queue (promises, async/await) or macrotask queue (setTimeout, I/O), and the event loop processes the call stack to empty before draining microtasks, then macrotasks. This is why a resolved Promise's `.then()` runs before a `setTimeout(fn, 0)`.",
+        "key_points": [
+            "Correctly explain the microtask-before-macrotask ordering, ideally with the setTimeout(0) vs Promise.then() example",
+            "async/await is syntactic sugar over Promises, not a separate concurrency mechanism",
+        ],
+        "pitfalls": ["Claiming JavaScript is multi-threaded because of async/await"],
+        "complexity": None, "edge_cases": [],
+    },
+    # ---------------- ML / AI / LLM ----------------
+    {
+        "id": "CE032", "topic": "Machine Learning", "tags": ["machine learning", "overfitting"],
+        "concept": "Bias-variance tradeoff and overfitting",
+        "explanation": "High bias (underfitting) means the model is too simple to capture the underlying pattern, performing poorly on both train and test data. High variance (overfitting) means the model fits training noise, performing well on train but poorly on unseen data. Regularization (L1/L2), cross-validation, early stopping, and increasing training data are standard mitigations for overfitting; increasing model complexity or feature richness addresses underfitting.",
+        "key_points": [
+            "Correctly diagnose bias vs variance from a train/test performance gap description",
+            "Name at least one concrete mitigation technique per failure mode",
+        ],
+        "pitfalls": ["Confusing high train error (bias problem) with a large train-test gap (variance problem)"],
+        "complexity": None, "edge_cases": [],
+    },
+    {
+        "id": "CE033", "topic": "Machine Learning", "tags": ["machine learning", "evaluation"],
+        "concept": "Model evaluation metrics",
+        "explanation": "Accuracy is misleading on imbalanced datasets. Precision measures how many predicted-positives are truly positive (matters when false positives are costly); recall measures how many actual positives were caught (matters when false negatives are costly). F1 is their harmonic mean. ROC-AUC evaluates ranking quality across thresholds, useful when the decision threshold isn't fixed yet.",
+        "key_points": [
+            "Justify metric choice against the actual cost asymmetry of false positives vs false negatives in the stated problem",
+            "Explicitly flag accuracy as insufficient on imbalanced classes",
+        ],
+        "pitfalls": ["Defaulting to accuracy as the metric for an imbalanced classification problem"],
+        "complexity": None, "edge_cases": [],
+    },
+    {
+        "id": "CE034", "topic": "LLM", "tags": ["llm", "transformers", "attention"],
+        "concept": "Transformer architecture and attention",
+        "explanation": "Self-attention computes, for each token, a weighted combination of all other tokens' values, with weights derived from query-key similarity — this lets the model capture long-range dependencies in parallel, unlike RNNs which process sequentially. Multi-head attention runs several attention operations in parallel subspaces, letting the model attend to different types of relationships simultaneously. Positional encoding is added since attention itself has no inherent notion of token order.",
+        "key_points": [
+            "Explain query/key/value roles concretely, not just 'attention looks at other tokens'",
+            "State why positional encoding is necessary given attention's permutation-invariance",
+        ],
+        "pitfalls": ["Describing attention as sequential processing (that's the RNN limitation transformers solve)"],
+        "complexity": None, "edge_cases": [],
+    },
+    {
+        "id": "CE035", "topic": "RAG", "tags": ["rag", "vector databases", "embeddings"],
+        "concept": "Retrieval-Augmented Generation fundamentals",
+        "explanation": "RAG grounds an LLM's output by retrieving relevant documents (via embedding similarity search in a vector store) and injecting them into the prompt context before generation, reducing hallucination and enabling up-to-date/domain-specific knowledge without retraining the model. Chunking strategy, embedding model quality, and retrieval-k (how many documents to retrieve) materially affect answer quality — too few chunks under-informs the model, too many dilutes relevant context and increases cost/latency.",
+        "key_points": [
+            "Explain the retrieve-then-generate pipeline concretely (embed query, similarity search, inject into context, generate)",
+            "Discuss chunking strategy and retrieval-k as real tuning levers, not implementation details to skip over",
+        ],
+        "pitfalls": ["Describing RAG as 'fine-tuning with documents' — it's a context-injection technique, not a training-time technique"],
+        "complexity": None, "edge_cases": [],
+    },
+    {
+        "id": "CE036", "topic": "Generative AI", "tags": ["llm", "fine-tuning", "prompt engineering"],
+        "concept": "Fine-tuning vs prompt engineering vs RAG",
+        "explanation": "Prompt engineering shapes model behavior through input design alone — cheapest, fastest to iterate, but limited by context window and doesn't add new knowledge. RAG adds external, up-to-date knowledge at inference time without changing model weights. Fine-tuning updates model weights on a task-specific dataset — best for changing model behavior/style/format consistently, but costly, requires labeled data, and can cause catastrophic forgetting if not done carefully.",
+        "key_points": [
+            "Correctly map each technique to what it actually changes (input vs retrieved context vs model weights)",
+            "Justify technique choice against the actual problem: need fresh facts -> RAG; need a specific consistent style/format -> fine-tuning",
+        ],
+        "pitfalls": ["Treating fine-tuning as the default/best solution for 'the model doesn't know X' when RAG is usually cheaper and more appropriate for factual grounding"],
+        "complexity": None, "edge_cases": [],
+    },
+    # ---------------- BEHAVIORAL / APTITUDE ----------------
+    {
+        "id": "CE037", "topic": "Behavioral", "tags": ["behavioral", "star method"],
+        "concept": "STAR method for behavioral answers",
+        "explanation": "A strong behavioral answer follows Situation (brief context), Task (the specific responsibility/goal), Action (what the candidate specifically did, in first person, not what 'the team' did), and Result (quantified outcome where possible, plus what was learned). The Action section should dominate the answer — a common failure mode is spending most of the answer on Situation/Task and rushing the Action and Result.",
+        "key_points": [
+            "Action should be specific and first-person ('I decided to...' not 'we decided')",
+            "Result should be quantified or at least concretely observable where possible",
+            "A brief reflection/learning statement strengthens the answer without being required",
+        ],
+        "pitfalls": [
+            "All Situation, no Action — the candidate describes the problem at length but never says what they personally did",
+            "Vague, unquantified results ('it went well') where a concrete outcome was available",
+        ],
+        "complexity": None, "edge_cases": [],
+    },
+    {
+        "id": "CE038", "topic": "Aptitude", "tags": ["aptitude", "time and work"],
+        "concept": "Time and work / rate problems",
+        "explanation": "Rate problems are solved by converting 'time to complete alone' into a work rate (1/time per unit time), summing rates for combined work, and inverting the summed rate to get combined time. E.g., A takes 12 days (rate 1/12/day), B takes 15 days (rate 1/15/day); combined rate = 1/12+1/15 = 9/60 = 3/20 per day, so combined time = 20/3 days.",
+        "key_points": [
+            "Convert to rate (work per unit time) before combining — a common error is trying to average the times directly",
+            "Show the arithmetic, not just the final number, to demonstrate the method",
+        ],
+        "pitfalls": ["Averaging the two times directly (e.g., (12+15)/2) instead of combining rates — this is a very common candidate mistake"],
+        "complexity": None, "edge_cases": [],
+    },
+]
+
+
+def main():
+    OUT_PATH.write_text(json.dumps(CORPUS, indent=2))
+    print(f"Wrote {len(CORPUS)} canonical explanation entries to {OUT_PATH}")
+    topics = {}
+    for c in CORPUS:
+        topics[c["topic"]] = topics.get(c["topic"], 0) + 1
+    for t, n in sorted(topics.items(), key=lambda x: -x[1]):
+        print(f"  {t:20s} {n}")
+
+
+if __name__ == "__main__":
+    main()

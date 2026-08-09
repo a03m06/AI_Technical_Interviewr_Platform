@@ -1,0 +1,117 @@
+{
+  "Coding": {
+    "description": "Used for DSA/coding questions. Evaluate the candidate's verbal or written approach, not just whether code compiles.",
+    "criteria": [
+      {
+        "name": "Correctness",
+        "weight": 0.3,
+        "description": "Does the proposed approach actually solve the problem, including on non-trivial inputs?"
+      },
+      {
+        "name": "Approach & Algorithm Choice",
+        "weight": 0.2,
+        "description": "Is the chosen technique appropriate for the problem (matches the canonical pattern retrieved), or is it a worse-than-necessary approach the candidate didn't recognize?"
+      },
+      {
+        "name": "Time & Space Complexity",
+        "weight": 0.15,
+        "description": "Can the candidate state and justify the complexity of their approach, and identify if a better bound exists?"
+      },
+      {
+        "name": "Edge Case Handling",
+        "weight": 0.15,
+        "description": "Does the candidate proactively address edge cases (empty input, single element, duplicates, etc.) relevant to this problem?"
+      },
+      {
+        "name": "Communication & Code Quality",
+        "weight": 0.2,
+        "description": "Is the explanation clear and structured? If code was written, is it readable and reasonably organized?"
+      }
+    ]
+  },
+  "Theory": {
+    "description": "Used for conceptual/theory questions (OS, DBMS, networking, language fundamentals, ML theory, etc.).",
+    "criteria": [
+      {
+        "name": "Conceptual Correctness",
+        "weight": 0.4,
+        "description": "Is the core explanation factually correct against the canonical explanation retrieved for this topic?"
+      },
+      {
+        "name": "Depth & Completeness",
+        "weight": 0.25,
+        "description": "Does the answer cover the key points expected for this concept, not just a surface-level definition?"
+      },
+      {
+        "name": "Clarity of Communication",
+        "weight": 0.2,
+        "description": "Is the explanation structured and understandable, appropriate for explaining to a colleague?"
+      },
+      {
+        "name": "Real-World Grounding",
+        "weight": 0.15,
+        "description": "Does the candidate connect the concept to a concrete example or practical implication, rather than reciting a definition?"
+      }
+    ]
+  },
+  "Design": {
+    "description": "Used for System Design and LLD questions.",
+    "criteria": [
+      {
+        "name": "Requirements Clarification",
+        "weight": 0.15,
+        "description": "Did the candidate clarify scope/constraints before designing, rather than assuming requirements?"
+      },
+      {
+        "name": "Architecture & Component Design",
+        "weight": 0.3,
+        "description": "Are the major components/classes identified with clear responsibilities, matching sound design principles for this problem type?"
+      },
+      {
+        "name": "Tradeoff Reasoning",
+        "weight": 0.25,
+        "description": "Does the candidate explicitly justify design choices (e.g., consistency vs availability, SQL vs NoSQL, caching strategy) rather than asserting them?"
+      },
+      {
+        "name": "Edge Cases & Failure Handling",
+        "weight": 0.15,
+        "description": "Does the design address failure modes, concurrency, or scale limits relevant to the problem?"
+      },
+      {
+        "name": "Communication",
+        "weight": 0.15,
+        "description": "Is the design walked through in a structured, logical order?"
+      }
+    ]
+  },
+  "Behavioral": {
+    "description": "Used for behavioral questions. Grounded against the STAR method canonical explanation.",
+    "criteria": [
+      {
+        "name": "Situation & Task Clarity",
+        "weight": 0.2,
+        "description": "Is the context concise and sufficient to understand the stakes, without over-explaining?"
+      },
+      {
+        "name": "Action Specificity",
+        "weight": 0.3,
+        "description": "Does the candidate describe what THEY specifically did, in first person, rather than what the team did in general?"
+      },
+      {
+        "name": "Result & Impact",
+        "weight": 0.25,
+        "description": "Is there a concrete, ideally quantified outcome, rather than a vague 'it worked out' statement?"
+      },
+      {
+        "name": "Reflection",
+        "weight": 0.1,
+        "description": "Does the candidate show learning or self-awareness about the experience?"
+      },
+      {
+        "name": "Communication",
+        "weight": 0.15,
+        "description": "Is the answer well-structured and appropriately concise?"
+      }
+    ]
+  }
+}
